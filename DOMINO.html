@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="ht">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Domino Kreyòl - PWA</title>
+    
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#1e293b">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            background-color: #0f172a;
+            color: #f8fafc;
+            user-select: none;
+        }
+
+        .domino-tile {
+            background: linear-gradient(145deg, #ffffff, #e2e8f0);
+            color: #0f172a;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.3), inset 0 2px 4px rgba(255,255,255,0.8);
+            border: 2px solid #94a3b8;
+            transition: all 0.2s ease;
+        }
+
+        .domino-tile:hover {
+            transform: translateY(-6px) scale(1.05);
+            box-shadow: 0 10px 15px -3px rgba(59, 130, 246, 0.5);
+        }
+
+        .dot {
+            width: 8px;
+            height: 8px;
+            background-color: #0f172a;
+            border-radius: 50%;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between items-center p-4">
+
+    <!-- En-tête -->
+    <header class="w-full max-w-md bg-slate-800/80 backdrop-blur p-4 rounded-2xl border border-slate-700 flex justify-between items-center shadow-lg">
+        <div>
+            <h1 class="text-lg font-black text-amber-400">🁢 Domino Kreyòl</h1>
+            <p class="text-xs text-slate-400">Jwe ak konpitè a</p>
+        </div>
+        <div class="text-right text-xs">
+            <span class="block font-bold text-emerald-400">Pwen w: <span id="player-score">0</span></span>
+            <span class="block font-bold text-rose-400">Adversè: <span id="bot-score">0</span></span>
+        </div>
+    </header>
+
+    <!-- Zone de jeu (Table) -->
+    <main class="w-full max-w-md my-auto bg-emerald-900/60 border-2 border-emerald-600/40 rounded-3xl p-6 min-h-[220px] flex items-center justify-center relative shadow-2xl overflow-x-auto">
+        <div id="game-board" class="flex items-center space-x-2">
+            <p id="start-msg" class="text-xs text-emerald-200/60 font-semibold text-center">Mete premye domino a pou kòmanse matche la!</p>
+        </div>
+    </main>
+
+    <!-- Main du joueur -->
+    <footer class="w-full max-w-md bg-slate-800/90 border border-slate-700 p-4 rounded-2xl flex flex-col items-center space-y-3">
+        <div class="flex justify-between w-full text-xs font-bold px-2">
+            <span class="text-slate-300">Domino nan men w (<span id="hand-count">0</span>)</span>
+            <button onclick="drawTile()" class="text-amber-400 hover:text-amber-300 bg-slate-700 px-3 py-1 rounded-lg border border-slate-600 transition">Pyo (Tire) 🁫</button>
+        </div>
+
+        <div id="player-hand" class="flex space-x-2 overflow-x-auto w-full py-2 px-1">
+            <!-- Les dominos s'afficheront ici -->
+        </div>
+    </footer>
+
+    <script>
+        // Inscription au Service Worker pour PWA
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js').catch(err => console.log(err));
+        }
+
+        let playerHand = [
+            [6, 6], [5, 4], [3, 3], [2, 1], [0, 5], [4, 4]
+        ];
+        let boardState = [];
+        let playerScore = 0;
+        let botScore = 0;
+
+        function renderHand() {
+            const handContainer = document.getElementById('player-hand');
+            document.getElementById('hand-count').innerText = playerHand.length;
+            handContainer.innerHTML = '';
+
+            playerHand.forEach((tile, index) => {
+                const el = document.createElement('div');
+                el.className = "domino-tile w-12 h-20 rounded-xl flex flex-col justify-between items-center p-2 cursor-pointer flex-shrink-0";
+                el.onclick = () => playTile(index);
+
+                el.innerHTML = `
+                    <div class="font-bold text-xs">${tile[0]}</div>
+                    <div class="w-full h-[1px] bg-slate-400"></div>
+                    <div class="font-bold text-xs">${tile[1]}</div>
+                `;
+                handContainer.appendChild(el);
+            });
+        }
+
+        function playTile(index) {
+            const tile = playerHand[index];
+            playerHand.splice(index, 1);
+            boardState.push(tile);
+            
+            document.getElementById('start-msg')?.remove();
+            renderBoard();
+            renderHand();
+
+            playerScore += tile[0] + tile[1];
+            document.getElementById('player-score').innerText = playerScore;
+
+            // Tour du bot après 1 seconde
+            setTimeout(botTurn, 1000);
+        }
+
+        function renderBoard() {
+            const boardContainer = document.getElementById('game-board');
+            boardContainer.innerHTML = '';
+
+            boardState.forEach(tile => {
+                const el = document.createElement('div');
+                el.className = "domino-tile w-10 h-16 rounded-lg flex flex-col justify-between items-center p-1.5 flex-shrink-0 shadow-md";
+                el.innerHTML = `
+                    <div class="font-bold text-xs">${tile[0]}</div>
+                    <div class="w-full h-[1px] bg-slate-400"></div>
+                    <div class="font-bold text-xs">${tile[1]}</div>
+                `;
+                boardContainer.appendChild(el);
+            });
+        }
+
+        function drawTile() {
+            const top = Math.floor(Math.random() * 7);
+            const bottom = Math.floor(Math.random() * 7);
+            playerHand.push([top, bottom]);
+            renderHand();
+        }
+
+        function botTurn() {
+            const botTile = [Math.floor(Math.random() * 7), Math.floor(Math.random() * 7)];
+            boardState.push(botTile);
+            botScore += botTile[0] + botTile[1];
+            document.getElementById('bot-score').innerText = botScore;
+            renderBoard();
+        }
+
+        // Initialisation du jeu
+        renderHand();
+    </script>
+</body>
+</html>
